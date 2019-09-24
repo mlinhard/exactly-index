@@ -12,21 +12,39 @@ type TestSearch struct {
 }
 
 func testSearchIn(text string, t *testing.T) *TestSearch {
-	// TODO: to implement
-	return nil
+	search, err := NewSingle("testDoc", []byte(text))
+	if err != nil {
+		t.Error(err)
+		return nil
+	}
+	return &TestSearch{search, t}
+}
+
+func toSet(array []int) *set.Set {
+	r := set.New()
+	for i := range array {
+		r.Insert(array[i])
+	}
+	return r
 }
 
 func (ts *TestSearch) assertPositions(pattern string, positions ...int) {
 	result := ts.search.Find([]byte(pattern))
-	expectedSet := set.New(positions)
-	computedSet := set.New(result.Positions())
-	if expectedSet != computedSet {
-		ts.t.Errorf("Fail")
+	if result == nil {
+		return
+	}
+	expectedSet := toSet(positions)
+	computedSet := toSet(result.Positions())
+	if !(expectedSet.SubsetOf(computedSet) && computedSet.SubsetOf(expectedSet)) {
+		ts.t.Errorf("Expected positions for pattern %v: %v, but got %v", pattern, positions, result.Positions())
 	}
 }
 
 func TestAbracadabra(t *testing.T) {
 	search := testSearchIn("abracadabra", t)
+	if search == nil {
+		return
+	}
 	search.assertPositions("abracadabra", 0)
 	search.assertPositions("bracadabra", 1)
 	search.assertPositions("racadabra", 2)
