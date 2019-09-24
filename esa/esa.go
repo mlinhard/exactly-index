@@ -30,18 +30,18 @@ func (s int32stack) Pop() (int32stack, int32) {
 }
 
 type EnhancedSuffixArray struct {
-	data []byte
+	Data []byte
 	SA   []int32
-	lcp  []int32
-	rank []int32
-	up   []int32
-	down []int32
-	next []int32
+	LCP  []int32
+	Rank []int32
+	Up   []int32
+	Down []int32
+	Next []int32
 }
 
 func New(data []byte) (*EnhancedSuffixArray, error) {
 	esa := new(EnhancedSuffixArray)
-	esa.data = data
+	esa.Data = data
 	esa.SA = make([]int32, len(data))
 	err := sais.Sais32(data, esa.SA)
 	if err != nil {
@@ -53,7 +53,7 @@ func New(data []byte) (*EnhancedSuffixArray, error) {
 func (esa EnhancedSuffixArray) Print() string {
 	s := " i: SA[i] suffix\n"
 	for i := range esa.SA {
-		s += fmt.Sprintf("%2v: %4v %v\n", i, esa.SA[i], string(esa.data[esa.SA[i]:]))
+		s += fmt.Sprintf("%2v: %4v %v\n", i, esa.SA[i], string(esa.Data[esa.SA[i]:]))
 	}
 	return s
 }
@@ -64,54 +64,54 @@ func (esa EnhancedSuffixArray) ComputeLCP() {
 
 func (esa EnhancedSuffixArray) ComputeLCPKeepRank(keepRank bool) {
 	start := (int32)(0)
-	length := (int32)(len(esa.data))
-	esa.rank = make([]int32, length)
+	length := (int32)(len(esa.Data))
+	esa.Rank = make([]int32, length)
 	for i := (int32)(0); i < length; i++ {
-		esa.rank[i] = i
+		esa.Rank[i] = i
 	}
 	h := (int32)(0)
-	esa.lcp = make([]int32, length+1)
+	esa.LCP = make([]int32, length+1)
 	for i := (int32)(0); i < length; i++ {
-		k := esa.rank[i]
+		k := esa.Rank[i]
 		if k == 0 {
-			esa.lcp[k] = -1
+			esa.LCP[k] = -1
 		} else {
 			j := esa.SA[k-1]
-			for i+h < length && j+h < length && esa.data[start+i+h] == esa.data[start+j+h] {
+			for i+h < length && j+h < length && esa.Data[start+i+h] == esa.Data[start+j+h] {
 				h++
 			}
-			esa.lcp[k] = h
+			esa.LCP[k] = h
 		}
 		if h > 0 {
 			h--
 		}
 	}
-	esa.lcp[0] = 0
-	esa.lcp[length] = 0
+	esa.LCP[0] = 0
+	esa.LCP[length] = 0
 	if !keepRank {
-		esa.rank = nil
+		esa.Rank = nil
 	}
 }
 
 func (esa EnhancedSuffixArray) ComputeUpDown() {
-	esa.up = make([]int32, len(esa.lcp))
-	esa.down = make([]int32, len(esa.lcp))
-	for i := range esa.up {
-		esa.up[i] = UNDEF
-		esa.down[i] = UNDEF
+	esa.Up = make([]int32, len(esa.LCP))
+	esa.Down = make([]int32, len(esa.LCP))
+	for i := range esa.Up {
+		esa.Up[i] = UNDEF
+		esa.Down[i] = UNDEF
 	}
 	lastIndex := UNDEF
 	var stack int32stack
 	stack = stack.Push(0)
-	for i := (int32)(0); i < (int32)(len(esa.lcp)); i++ {
-		for esa.lcp[i] < esa.lcp[stack.Peek()] {
+	for i := (int32)(0); i < (int32)(len(esa.LCP)); i++ {
+		for esa.LCP[i] < esa.LCP[stack.Peek()] {
 			stack, lastIndex = stack.Pop()
-			if esa.lcp[i] <= esa.lcp[stack.Peek()] && esa.lcp[stack.Peek()] != esa.lcp[lastIndex] {
-				esa.down[stack.Peek()] = lastIndex
+			if esa.LCP[i] <= esa.LCP[stack.Peek()] && esa.LCP[stack.Peek()] != esa.LCP[lastIndex] {
+				esa.Down[stack.Peek()] = lastIndex
 			}
 		}
 		if lastIndex != UNDEF {
-			esa.up[i] = lastIndex
+			esa.Up[i] = lastIndex
 			lastIndex = UNDEF
 		}
 		stack = stack.Push(i)
@@ -119,20 +119,20 @@ func (esa EnhancedSuffixArray) ComputeUpDown() {
 }
 
 func (esa EnhancedSuffixArray) ComputeNext() {
-	esa.next = make([]int32, len(esa.lcp))
-	for i := range esa.up {
-		esa.next[i] = UNDEF
+	esa.Next = make([]int32, len(esa.LCP))
+	for i := range esa.Up {
+		esa.Next[i] = UNDEF
 	}
 	var stack int32stack
 	var lastIndex int32
 	stack = stack.Push(0)
-	for i := (int32)(0); i < (int32)(len(esa.lcp)); i++ {
-		for esa.lcp[i] < esa.lcp[stack.Peek()] {
+	for i := (int32)(0); i < (int32)(len(esa.LCP)); i++ {
+		for esa.LCP[i] < esa.LCP[stack.Peek()] {
 			stack, _ = stack.Pop()
 		}
-		if esa.lcp[i] == esa.lcp[stack.Peek()] {
+		if esa.LCP[i] == esa.LCP[stack.Peek()] {
 			stack, lastIndex = stack.Pop()
-			esa.next[lastIndex] = i
+			esa.Next[lastIndex] = i
 		}
 		stack = stack.Push(i)
 	}
@@ -140,7 +140,7 @@ func (esa EnhancedSuffixArray) ComputeNext() {
 
 func (esa EnhancedSuffixArray) IntroduceSeparators(offsets []int32, separator []byte) {
 	separatorExtraSpace := (int32)((len(offsets) - 1) * len(separator))
-	newData := make([]byte, (int32)(len(esa.data))+separatorExtraSpace)
+	newData := make([]byte, (int32)(len(esa.Data))+separatorExtraSpace)
 	lastIdx := (int32)(len(offsets) - 1)
 	for i := (int32)(0); i < lastIdx; i++ {
 		oldOffset := offsets[i]
@@ -150,7 +150,7 @@ func (esa EnhancedSuffixArray) IntroduceSeparators(offsets []int32, separator []
 	}
 	oldOffset := offsets[lastIdx]
 	separatorExtraSpace = lastIdx * (int32)(len(separator))
-	esa.MoveSegment(oldOffset, (int32)(len(esa.data)), separatorExtraSpace, newData)
+	esa.MoveSegment(oldOffset, (int32)(len(esa.Data)), separatorExtraSpace, newData)
 	offsets[lastIdx] = oldOffset + separatorExtraSpace
 
 	for i := (int32)(0); i < (int32)(len(separator)); i++ {
@@ -160,15 +160,15 @@ func (esa EnhancedSuffixArray) IntroduceSeparators(offsets []int32, separator []
 		}
 	}
 
-	esa.data = newData
+	esa.Data = newData
 }
 
 func (esa EnhancedSuffixArray) MoveSegment(start, end, separatorExtraSpace int32, newData []byte) {
 	for i := start; i < end; i++ {
-		newData[i+separatorExtraSpace] = esa.data[i]
+		newData[i+separatorExtraSpace] = esa.Data[i]
 	}
 	for j := start; j < end; j++ {
-		esa.SA[esa.rank[j]] += separatorExtraSpace
+		esa.SA[esa.Rank[j]] += separatorExtraSpace
 	}
 }
 
