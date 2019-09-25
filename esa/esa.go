@@ -7,6 +7,7 @@ import (
 	"log"
 	"sort"
 
+	"github.com/golang-collections/collections/stack"
 	"github.com/mlinhard/sais-go/sais"
 )
 
@@ -28,14 +29,6 @@ func (s int32stack) Push(v int32) int32stack {
 func (s int32stack) Pop() (int32stack, int32) {
 	l := len(s)
 	return s[:l-1], s[l-1]
-}
-
-func toint32(a []int) []int32 {
-	r := make([]int32, len(a))
-	for i := range a {
-		r[i] = int32(a[i])
-	}
-	return r
 }
 
 type Interval struct {
@@ -72,12 +65,60 @@ func New(data []byte) (*EnhancedSuffixArray, error) {
 	return esa, nil
 }
 
+func (esa *EnhancedSuffixArray) findNonExistentChar(parent *Interval, sepLen int32, occurence []bool) int16 {
+	for i := range occurence {
+		occurence[i] = false
+	}
+	esa.forEachChild(parent, func(child *Interval) {
+		if esa.SA[child.Start]+sepLen < int32(len(esa.Data)) {
+			edgeStart := esa.Data[esa.SA[child.Start]+sepLen]
+			occurence[edgeStart] = true
+		}
+	})
+	for i := int16(0); i < int16(len(occurence)); i++ {
+		if !occurence[i] {
+			return i
+		}
+	}
+	return CUNDEF
+}
+
+func (esa *EnhancedSuffixArray) buildSeparator(saIdx int32, sepLen int32, tail byte) []byte {
+	separator := make([]byte, sepLen+1)
+	dataStart := esa.SA[saIdx]
+	for i := int32(0); i < sepLen; i++ {
+		separator[i] = esa.Data[dataStart+i]
+	}
+	separator[sepLen] = tail
+	return separator
+}
+
+type sepLenInterval struct {
+	sepLen int32
+	Interval
+}
+
 func (esa *EnhancedSuffixArray) findSeparator() []byte {
-	// TODO finish
+	var intervalStack stack.Stack
+	occurenceBuf := make([]bool, 256)
+	intervalStack.Push(sepLenInterval{0, esa.rootInterval})
+
+	for intervalStack.Len() != 0 {
+		t := intervalStack.Pop().(sepLenInterval)
+		nonExistentChar := esa.findNonExistentChar(&t.Interval, t.sepLen, occurenceBuf)
+		if nonExistentChar != CUNDEF {
+			return esa.buildSeparator(t.Interval.Start, t.sepLen, byte(nonExistentChar))
+		} else {
+			esa.forEachChild(&t.Interval, func(child *Interval) {
+				intervalStack.Push(sepLenInterval{t.sepLen + 1, *child})
+			})
+		}
+	}
+
 	return nil
 }
 
-func NewMulti(combinedContent []byte, offsets []int) (*EnhancedSuffixArray, []byte, error) {
+func NewMulti(combinedContent []byte, offsets []int32) (*EnhancedSuffixArray, []byte, error) {
 	separatorEsa := newESA(combinedContent)
 	err := separatorEsa.computeSA()
 	if err != nil {
@@ -86,8 +127,9 @@ func NewMulti(combinedContent []byte, offsets []int) (*EnhancedSuffixArray, []by
 	separatorEsa.computeLCPKeepRank(true)
 	separatorEsa.computeUpDown()
 	separatorEsa.computeNext()
+	separatorEsa.rootInterval = Interval{0, 0, int32(len(separatorEsa.SA) - 1)}
 	separator := separatorEsa.findSeparator()
-	separatorEsa.introduceSeparators(toint32(offsets), separator)
+	separatorEsa.introduceSeparators(offsets, separator)
 	esa, err := New(separatorEsa.Data)
 	if err != nil {
 		return nil, nil, err
