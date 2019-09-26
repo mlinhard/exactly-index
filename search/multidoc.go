@@ -30,9 +30,13 @@ func toint32(a []int) []int32 {
 }
 
 func NewMulti(combinedContent []byte, offsets []int, docIds []string) (*MultiDocumentSearch, error) {
+	return NewMulti32(combinedContent, toint32(offsets), docIds)
+}
+
+func NewMulti32(combinedContent []byte, offsets []int32, docIds []string) (*MultiDocumentSearch, error) {
 	search := new(MultiDocumentSearch)
 	search.ids = docIds
-	search.offsets = toint32(offsets)
+	search.offsets = offsets
 	esa, separator, err := esa.NewMulti(combinedContent, search.offsets)
 	if err != nil {
 		return nil, err
